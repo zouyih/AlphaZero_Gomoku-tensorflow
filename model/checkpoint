@@ -1,0 +1,2 @@
+model_checkpoint_path: "tf_policy_8_8_5_model"
+all_model_checkpoint_paths: "tf_policy_8_8_5_model"
