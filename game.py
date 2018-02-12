@@ -1,5 +1,3 @@
-
-
 import numpy as np
 import tkinter
 import math
@@ -129,7 +127,7 @@ class Game(object):
     def __init__(self, board, **kwargs):
         self.board = board
     
-    def click1(self, event): #click1因为关键字重复
+    def click1(self, event): #click1 because keyword repetition
         size = self.board.width
         current_player = self.board.get_current_player()
         if current_player == 1:
@@ -183,39 +181,16 @@ class Game(object):
         for i in range(width):
             for j in range(height):
                 self.chess_board_points[i][j] = Point(i, j);
-        for i in range(width):  #绘制竖线
+        for i in range(width):  #vertical line
             self.cv.create_line(self.chess_board_points[i][0].pixel_x, self.chess_board_points[i][0].pixel_y, self.chess_board_points[i][width-1].pixel_x, self.chess_board_points[i][width-1].pixel_y)
         
-        for j in range(height):  #绘制横线
+        for j in range(height):  #rizontal line
             self.cv.create_line(self.chess_board_points[0][j].pixel_x, self.chess_board_points[0][j].pixel_y, self.chess_board_points[height-1][j].pixel_x, self.chess_board_points[height-1][j].pixel_y)        
         
         self.button = tkinter.Button(window, text="start game!", command=self.run)
         self.cv.bind('<Button-1>', self.click1)
         self.cv.pack()
         self.button.pack()
-        window.mainloop()
-
-    def self_graphic(self, board, player1, player2):
-        """
-        Draw the board and show game info
-        """
-        width = board.width
-        height = board.height
-        
-        window = tkinter.Tk()
-        self.cv = tkinter.Canvas(window, height=600, width=480, bg = 'white')
-        self.chess_board_points = [[None for i in range(6)] for j in range(6)]
-        
-        for i in range(width):
-            for j in range(height):
-                self.chess_board_points[i][j] = Point(i, j);
-        for i in range(width):  #绘制竖线
-            self.cv.create_line(self.chess_board_points[i][0].pixel_x, self.chess_board_points[i][0].pixel_y, self.chess_board_points[i][6-1].pixel_x, self.chess_board_points[i][6-1].pixel_y)
-        
-        for j in range(height):  #绘制横线
-            self.cv.create_line(self.chess_board_points[0][j].pixel_x, self.chess_board_points[0][j].pixel_y, self.chess_board_points[6-1][j].pixel_x, self.chess_board_points[6-1][j].pixel_y)        
-
-        self.cv.pack()
         window.mainloop()
                
     def start_play(self, player1, player2, start_player=0, is_shown=1):
