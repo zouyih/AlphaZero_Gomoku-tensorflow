@@ -113,8 +113,3 @@ class PolicyValueNet():
             self.saver.restore(self.sess, self.model_file)
         else:
             self.sess.run(tf.global_variables_initializer())
-            
-    def get_model_params(self):
-        gvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
-        return {gvar.op.name: value for gvar, value in zip(gvars, self.sess.run(gvars))}
-    
