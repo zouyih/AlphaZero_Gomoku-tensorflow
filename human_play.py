@@ -1,5 +1,4 @@
 
-
 from game import Board, Game
 
 from tf_policy_value_net import PolicyValueNet

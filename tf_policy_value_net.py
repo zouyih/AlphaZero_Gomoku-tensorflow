@@ -10,7 +10,7 @@ import os
 
 class PolicyValueNet():
     """policy-value network """
-    def __init__(self, board_width, board_height, net_params=None):
+    def __init__(self, board_width, board_height):
         tf.reset_default_graph()
         self.board_width = board_width
         self.board_height = board_height
@@ -21,10 +21,6 @@ class PolicyValueNet():
         self._loss_train_op()
         self.saver = tf.train.Saver()
         self.restore_model()
-
-        if net_params:
-            saver = tf.train.Saver()
-            saver.restore(self.sess, net_params)  
             
     def create_policy_value_net(self):
         """create the policy value network """    
@@ -50,8 +46,8 @@ class PolicyValueNet():
                          strides=1, padding="SAME", data_format='channels_first',
                          activation=tf.nn.relu, name="policy_net")
         policy_net_flat = tf.reshape(policy_net, shape=[-1, 4*self.board_width*self.board_height])
-        policy_net_out = tf.layers.dense(policy_net_flat, self.board_width*self.board_height, name="output")
-        self.action_probs = tf.nn.softmax(policy_net_out, name="policy_net_proba")
+        self.policy_net_out = tf.layers.dense(policy_net_flat, self.board_width*self.board_height, name="output")
+        self.action_probs = tf.nn.softmax(self.policy_net_out, name="policy_net_proba")
 
         # state value layers
         value_net = tf.layers.conv2d(conv3, filters=2, kernel_size=1, 
@@ -87,7 +83,7 @@ class PolicyValueNet():
             if not 'bias' in v.name.lower():
                 l2_penalty += tf.nn.l2_loss(v)
         value_loss = tf.reduce_mean(tf.square(self.winner_reshape - self.value))
-        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=self.action_probs, labels=self.mcts_probs)
+        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=self.policy_net_out, labels=self.mcts_probs)
         policy_loss = tf.reduce_mean(cross_entropy)
         self.loss =  value_loss + policy_loss + self.l2_const*l2_penalty
         # policy entropy，for monitoring only
