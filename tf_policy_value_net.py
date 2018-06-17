@@ -10,22 +10,24 @@ import os
 
 class PolicyValueNet():
     """policy-value network """
-    def __init__(self, board_width, board_height):
+    def __init__(self, board_width, board_height, n_in_row):
         tf.reset_default_graph()
         self.board_width = board_width
         self.board_height = board_height
-        self.model_file = './model/tf_policy_8_8_5_model'
+        self.model_file = './model/tf_policy_{}_{}_{}_model'.format(board_width, board_height, n_in_row)
         self.sess = tf.Session()
         self.l2_const = 1e-4  #  coef of l2 penalty 
-        self.create_policy_value_net() 
+        self._create_policy_value_net() 
         self._loss_train_op()
         self.saver = tf.train.Saver()
         self.restore_model()
             
-    def create_policy_value_net(self):
+    def _create_policy_value_net(self):
         """create the policy value network """    
         with tf.name_scope("inputs"):
             self.state_input = tf.placeholder(tf.float32, shape=[None, 4, self.board_width, self.board_height], name="state")
+#            self.state = tf.transpose(self.state_input, [0, 2, 3, 1])
+            
             self.winner = tf.placeholder(tf.float32, shape=[None], name="winner") 
             self.winner_reshape = tf.reshape(self.winner, [-1,1])
             self.mcts_probs = tf.placeholder(tf.float32, shape=[None, self.board_width*self.board_height], name="mcts_probs")
@@ -50,28 +52,10 @@ class PolicyValueNet():
         self.action_probs = tf.nn.softmax(self.policy_net_out, name="policy_net_proba")
 
         # state value layers
-        value_net = tf.layers.conv2d(conv3, filters=2, kernel_size=1, 
-                                     data_format='channels_first', name='value_conv', activation=tf.nn.relu)
+        value_net = tf.layers.conv2d(conv3, filters=2, kernel_size=1, data_format='channels_first',
+                                     name='value_conv', activation=tf.nn.relu)
         value_net = tf.layers.dense(tf.contrib.layers.flatten(value_net), 64, activation=tf.nn.relu)
         self.value = tf.layers.dense(value_net, units=1, activation=tf.nn.tanh)
-    
-    def get_policy_value(self, state_batch):
-         # get action probs and state score value
-        action_probs, value = self.sess.run([self.action_probs, self.value],
-                                    feed_dict={self.state_input: state_batch})       
-        return action_probs, value
-
-    def policy_value_fn(self, board):
-        """
-        input: board
-        output: a list of (action, probability) tuples for each available action and the score of the board state
-        """
-        legal_positions = board.availables
-        current_state = board.current_state()
-        act_probs, value = self.sess.run([self.action_probs, self.value], 
-                                    feed_dict={self.state_input: current_state.reshape(-1, 4, self.board_width, self.board_height)})
-        act_probs = zip(legal_positions, act_probs.flatten()[legal_positions])
-        return act_probs, value[0][0]
     
     def _loss_train_op(self):
         """
@@ -89,20 +73,38 @@ class PolicyValueNet():
         # policy entropy，for monitoring only
         self.entropy = policy_loss
         # get the train op   
-        optimizer = tf.train.AdamOptimizer()
+        self.learning_rate = tf.placeholder(tf.float32)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
         self.training_op = optimizer.minimize(self.loss)
-    
-    def train_step(self, state_batch, mcts_probs_batch, winner_batch, show_loss=0):
+        
+    def get_policy_value(self, state_batch):
+         # get action probs and state score value
+        action_probs, value = self.sess.run([self.action_probs, self.value],
+                                    feed_dict={self.state_input: state_batch})       
+        return action_probs, value
+
+    def policy_value_fn(self, board):
+        """
+        input: board
+        output: a list of (action, probability) tuples for each available action and the score of the board state
+        """
+        legal_positions = board.availables
+        current_state = board.current_state()
+        act_probs, value = self.sess.run([self.action_probs, self.value], 
+                                    feed_dict={self.state_input: current_state.reshape(-1, 4, self.board_width, self.board_height)})
+        act_probs = zip(legal_positions, act_probs.flatten()[legal_positions])
+        return act_probs, value[0][0]
+        
+    def train_step(self, state_batch, mcts_probs_batch, winner_batch, lr):
         feed_dict = {self.state_input : state_batch,
                      self.mcts_probs : mcts_probs_batch, 
-                     self.winner : winner_batch,}
-        if show_loss:
-            loss, entropy, _ = self.sess.run([self.loss, self.entropy, self.training_op],
-                                         feed_dict=feed_dict)
-            return loss, entropy
-        else:
-            self.sess.run(self.training_op,
-                          feed_dict=feed_dict)
+                     self.winner : winner_batch,
+                     self.learning_rate: lr}
+
+        loss, entropy, _ = self.sess.run([self.loss, self.entropy, self.training_op],
+                                     feed_dict=feed_dict)
+        return loss, entropy
+
     
     def restore_model(self):        
         if os.path.exists(self.model_file + '.meta'):

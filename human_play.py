@@ -34,16 +34,16 @@ class Human(object):
 
 
 def run():
-    n = 5
-    width, height = 8, 8
+    n_row = 5
+    width, height = 11, 11
 
     try:
-        board = Board(width=width, height=height, n_in_row=n)
+        board = Board(width=width, height=height, n_in_row=n_row)
         game = Game(board)      
         
         ################ human VS AI ###################        
       
-        best_policy = PolicyValueNet(width, height)
+        best_policy = PolicyValueNet(width, height, n_row)
         mcts_player = MCTSPlayer(best_policy.policy_value_fn, c_puct=5, n_playout=400)  # set larger n_playout for better performance
         
         human = Human()                   

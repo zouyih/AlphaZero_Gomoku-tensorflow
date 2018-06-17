@@ -143,7 +143,10 @@ class Game(object):
     
     def run(self):
         current_player = self.board.get_current_player()
-        if current_player == 2:
+        
+        end, winner = self.board.game_end()
+        
+        if current_player == 2 and not end:
             player_in_turn = self.players[current_player]
             move = player_in_turn.get_action(self.board)
             self.board.do_move(move)
@@ -151,12 +154,13 @@ class Game(object):
             self.cv.create_oval(self.chess_board_points[i][j].pixel_x-10, self.chess_board_points[i][j].pixel_y-10, self.chess_board_points[i][j].pixel_x+10, self.chess_board_points[i][j].pixel_y+10, fill='white')
                 
         end, winner = self.board.game_end()
+        
         if end:
             if winner != -1:
-                self.cv.create_text(140, 270, text="Game over. Winner is {}".format(self.players[winner]))
+                self.cv.create_text(self.board.width*15+15, self.board.height*30+30, text="Game over. Winner is {}".format(self.players[winner]))
                 self.cv.unbind('<Button-1>')
             else:
-                self.cv.create_text(140, 270, text="Game end. Tie")
+                self.cv.create_text(self.board.width*15+15, self.board.height*30+30, text="Game end. Tie")
 
             return winner
         else:
@@ -175,8 +179,8 @@ class Game(object):
         self.players = {p1: player1, p2:player2}
         
         window = tkinter.Tk()
-        self.cv = tkinter.Canvas(window, height=300, width=280, bg = 'white')
-        self.chess_board_points = [[None for i in range(8)] for j in range(8)]
+        self.cv = tkinter.Canvas(window, height=height*30+60, width=width*30 + 30, bg = 'white')
+        self.chess_board_points = [[None for i in range(height)] for j in range(width)]
         
         for i in range(width):
             for j in range(height):
@@ -210,6 +214,7 @@ class Game(object):
             players = {p1: player1, p2:player2}
             while(1):
                 current_player = self.board.get_current_player()
+                print(current_player)
                 player_in_turn = players[current_player]
                 move = player_in_turn.get_action(self.board)
                 self.board.do_move(move)
@@ -232,8 +237,7 @@ class Game(object):
             states.append(self.board.current_state())
             mcts_probs.append(move_probs)
             current_players.append(self.board.current_player)
-            # perform a move
-                      
+            # perform a move   
             self.board.do_move(move)      
             end, winner = self.board.game_end()
             if end:

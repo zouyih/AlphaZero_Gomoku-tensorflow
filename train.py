@@ -10,34 +10,41 @@ from tf_policy_value_net import PolicyValueNet
 from mcts_pure import MCTSPlayer as MCTS_Pure
 from mcts_alphaZero import MCTSPlayer
 
+#import os
+#os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+
 
 class TrainPipeline():
     def __init__(self):
         # params of the board and the game
-        self.board_width = 8
-        self.board_height = 8
+        self.board_width = 11
+        self.board_height = 11
         self.n_in_row = 5
         self.board = Board(width=self.board_width, height=self.board_height, n_in_row=self.n_in_row)
         self.game = Game(self.board)
         # training params 
-
+        self.learn_rate = 0.001
+        self.lr_multiplier = 1.0  # adaptively adjust the learning rate based on KL
         self.temp = 1.0 # the temperature param
         self.n_playout = 400 # num of simulations for each move
         self.c_puct = 5
         self.buffer_size = 10000
-        self.batch_size = 512 # mini-batch size for training
+        self.batch_size = 128 # mini-batch size for training
         self.data_buffer = deque(maxlen=self.buffer_size)        
         self.play_batch_size = 1 
-        self.epochs = 3 # num of train_steps for each update
-        self.check_freq = 50
-        self.game_batch_num = 1500
+        self.epochs = 5 # num of train_steps for each update
+        self.kl_targ = 0.02
+        self.check_freq = 1000
+        self.game_batch_num = 50000000
         self.best_win_ratio = 0.0
         # num of simulations used for the pure mcts, which is used as the opponent to evaluate the trained policy
-        self.pure_mcts_playout_num = 1000
+        self.pure_mcts_playout_num = 3000
         
         # start training from a new policy-value net
-        self.policy_value_net = PolicyValueNet(self.board_width, self.board_height) 
-        self.mcts_player = MCTSPlayer(self.policy_value_net.policy_value_fn, c_puct=self.c_puct, n_playout=self.n_playout, is_selfplay=1)
+        self.policy_value_net = PolicyValueNet(self.board_width, self.board_height, self.n_in_row) 
+        self.mcts_player = MCTSPlayer(self.policy_value_net.policy_value_fn, 
+                                      c_puct=self.c_puct, 
+                                      n_playout=self.n_playout, is_selfplay=1)
 
     def get_equi_data(self, play_data):
         """
@@ -65,19 +72,60 @@ class TrainPipeline():
             self.episode_len = len(play_data) / 8
             self.data_buffer.extend(play_data)
                         
-    def policy_update(self):
+    def policy_update(self, verbose=False):
         """update the policy-value net"""
         mini_batch = random.sample(self.data_buffer, self.batch_size)
         state_batch = [data[0] for data in mini_batch]
         mcts_probs_batch = [data[1] for data in mini_batch]
         winner_batch = [data[2] for data in mini_batch]            
-
+        
+        old_probs, old_v = self.policy_value_net.get_policy_value(state_batch)
+        
+        loss_list = []
+        entropy_list = []
         for i in range(self.epochs): 
-            self.policy_value_net.train_step(state_batch, mcts_probs_batch, winner_batch)
+            loss, entropy = self.policy_value_net.train_step(state_batch, 
+                                             mcts_probs_batch, 
+                                             winner_batch,
+                                             self.learn_rate*self.lr_multiplier)
+            
+            loss_list.append(loss)
+            entropy_list.append(entropy)
+            
+            new_probs, new_v = self.policy_value_net.get_policy_value(state_batch)
+            kl = np.mean(np.sum(old_probs * (
+                    np.log(old_probs + 1e-10) - np.log(new_probs + 1e-10)),
+                    axis=1)
+            )
+            if kl > self.kl_targ * 4:  # early stopping if D_KL diverges badly
+                break
+        
+        if kl > self.kl_targ * 2 and self.lr_multiplier > 0.1:
+            self.lr_multiplier /= 1.5
+        elif kl < self.kl_targ / 2 and self.lr_multiplier < 10:
+            self.lr_multiplier *= 1.5
+            
+        if verbose:
+            explained_var_old = (1 -
+                                 np.var(np.array(winner_batch) - old_v.flatten()) /
+                                 np.var(np.array(winner_batch)))
+            explained_var_new = (1 -
+                                 np.var(np.array(winner_batch) - new_v.flatten()) /
+                                 np.var(np.array(winner_batch)))
+            
+            print(("kl: {:.3f}, "
+                   "lr_multiplier: {:.3f}\n"
+                   "loss: {:.3f}, "
+                   "entropy: {:.3f}\n"
+                   "explained old: {:.3f}, "
+                   "explained new: {:.3f}\n"
+                   ).format(kl,
+                            self.lr_multiplier,
+                            np.mean(loss_list),
+                            np.mean(entropy_list),
+                            explained_var_old,
+                            explained_var_new))        
 
-        loss, entropy = self.policy_value_net.train_step(state_batch, mcts_probs_batch, winner_batch, show_loss=1)
-        print(" loss:{:.3f}\n entropy:{:.3f}\n ".format(
-                loss, entropy))
         
     def policy_evaluate(self, n_games=10):
         """
@@ -89,6 +137,7 @@ class TrainPipeline():
         win_cnt = defaultdict(int)
         for i in range(n_games):
             winner = self.game.start_play(current_mcts_player, pure_mcts_player, start_player=i%2, is_shown=0)
+            print("winner is {}".format(winner))
             win_cnt[winner] += 1
         win_ratio = 1.0*(win_cnt[1] + 0.5*win_cnt[-1])/n_games
         print("num_playouts:{}, win: {}, lose: {}, tie:{}".format(self.pure_mcts_playout_num, win_cnt[1], win_cnt[2], win_cnt[-1]))
@@ -97,22 +146,25 @@ class TrainPipeline():
     def run(self):
         """run the training pipeline"""
         try:
-            for i in range(self.game_batch_num):                
+            for i in range(self.game_batch_num):  
                 self.collect_selfplay_data(self.play_batch_size)
              
                 if len(self.data_buffer) > self.batch_size:
-                    print("batch i:{}, episode_len:{}".format(i+1, self.episode_len))
-                    self.policy_update()                    
+                    print("#### batch i:{}, episode_len:{} ####\n".format(i+1, self.episode_len))
+                    for i in range(5):
+                        verbose = i % 5 == 0
+                        self.policy_update(verbose)                    
                 # check the performance of the current model，and save the model params
                 if (i+1) % self.check_freq == 0:
                     print("current self-play batch: {}".format(i+1))
                     self.policy_value_net.saver.save(self.policy_value_net.sess, self.policy_value_net.model_file)
                     win_ratio = self.policy_evaluate()
+                    print('*****win ration: {:.2f}%\n'.format(win_ratio*100))
                     
                     if win_ratio > self.best_win_ratio: 
                         print("New best policy!!!!!!!!")
                         self.best_win_ratio = win_ratio
-#                        self.policy_value_net.saver.save(self.policy_value_net.sess, self.policy_value_net.model_file) # update the best_policy
+                        self.policy_value_net.saver.save(self.policy_value_net.sess, self.policy_value_net.model_file) # update the best_policy
                         if self.best_win_ratio == 1.0 and self.pure_mcts_playout_num < 5000:
                             self.pure_mcts_playout_num += 100
                             self.best_win_ratio = 0.0

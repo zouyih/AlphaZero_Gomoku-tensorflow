@@ -1,7 +1,7 @@
 # AlphaZero_Gomoku-tensorflow
 
 程序参考自https://github.com/junxiaosong/AlphaZero_Gomoku  
-增加了TensorFlow网络和一个GUI  
+增加了TensorFlow网络和一个GUI，重新训练了11*11大小的棋盘  
 
 人机对战：运行human_play.py  
 训练：运行train.py
