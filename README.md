@@ -20,4 +20,4 @@ To train the model:
 
 ![Example](https://github.com/zouyih/AlphaZero_Gomoku-tensorflow/blob/master/example.gif)  
 
-there's another implementation of reinforcement learning [DQN-tensorflow-gluttonous_snake](https://github.com/zouyih/DQN-tensorflow-gluttonous_snake)
+there's another interesting implementation of reinforcement learning [DQN-tensorflow-gluttonous_snake](https://github.com/zouyih/DQN-tensorflow-gluttonous_snake)
