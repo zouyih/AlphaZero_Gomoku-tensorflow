@@ -1,6 +1,5 @@
 import numpy as np
 import tkinter
-import math
 
 class Board(object):
     """
@@ -128,19 +127,20 @@ class Game(object):
         self.board = board
     
     def click1(self, event): #click1 because keyword repetition
-        size = self.board.width
+
         current_player = self.board.get_current_player()
         if current_player == 1:
-            for i in range(size):
-                for j in range(size):
-                    move = self.board.location_to_move((i, j))
-                    if move in self.board.availables:
-                        square_distance = math.pow((event.x - self.chess_board_points[i][j].pixel_x), 2) + math.pow((event.y - self.chess_board_points[i][j].pixel_y), 2)                        
-                        
-                        if (square_distance <= 200):
-                            self.cv.create_oval(self.chess_board_points[i][j].pixel_x-10, self.chess_board_points[i][j].pixel_y-10, self.chess_board_points[i][j].pixel_x+10, self.chess_board_points[i][j].pixel_y+10, fill='black')
-                            self.board.do_move(move)
-    
+            i = (event.x) // 30
+            j = (event.y) // 30
+            ri = (event.x) % 30
+            rj = (event.y) % 30
+            i = i-1 if ri<15 else i
+            j = j-1 if rj<15 else j
+            move = self.board.location_to_move((i, j))
+            if move in self.board.availables:
+                self.cv.create_oval(self.chess_board_points[i][j].pixel_x-10, self.chess_board_points[i][j].pixel_y-10, self.chess_board_points[i][j].pixel_x+10, self.chess_board_points[i][j].pixel_y+10, fill='black')
+                self.board.do_move(move)
+
     def run(self):
         current_player = self.board.get_current_player()
         
